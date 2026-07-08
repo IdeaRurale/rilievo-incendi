@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  // In locale resta '/'; su GitHub Pages il workflow imposta BASE_PATH=/rilievo-incendi/
+  base: process.env.BASE_PATH || '/',
   plugins: [
     react(),
     VitePWA({
@@ -15,7 +17,8 @@ export default defineConfig({
         lang: 'it',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/',
+        start_url: './',
+        scope: './',
         background_color: '#f5f4ef',
         theme_color: '#14532d',
         icons: [
