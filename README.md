@@ -41,6 +41,9 @@ npm run preview   # anteprima della build
   esito tecnico predefinito (gli intervalli NON sono automaticamente validi per tutte le specie).
 - **Riepilogo**: teoriche/censite/mancanti, distribuzione per classe con grafico,
   percentuali danneggiate/gravi/distrutte/da sostituire, danno medio, da monitorare/da sostituire.
+- **Mappa del rilievo** (Leaflet): piante colorate per classe di danno, punti inizio/fine
+  filare, foto georiferite, sfondo satellitare (Esri) o stradale (OSM). Le tessere delle zone
+  già visitate restano in cache e visibili anche offline.
 
 \* la vibrazione usa `navigator.vibrate`, non supportata da iOS Safari: su iPhone la conferma
 è il flash visivo al centro dello schermo.
@@ -49,7 +52,7 @@ npm run preview   # anteprima della build
 
 - Stima economica con formule visibili e mancata funzione (M2)
 - Controllo qualità pre-chiusura (M2)
-- Mappa (MapLibre/Leaflet), export dati, report (M3)
+- Export dati, report (M3)
 
 ## Stack
 

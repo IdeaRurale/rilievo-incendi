@@ -29,7 +29,19 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2}'],
-        navigateFallback: 'index.html'
+        navigateFallback: 'index.html',
+        runtimeCaching: [
+          {
+            // tessere mappa: le zone già viste restano disponibili offline
+            urlPattern: /^https:\/\/(tile\.openstreetmap\.org|server\.arcgisonline\.com)\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'tessere-mappa',
+              expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 60 },
+              cacheableResponse: { statuses: [0, 200] }
+            }
+          }
+        ]
       }
     })
   ],
