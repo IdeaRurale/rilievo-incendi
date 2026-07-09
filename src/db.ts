@@ -144,12 +144,80 @@ export interface Setting {
   value: unknown;
 }
 
+/* ---------- Stima economica del danno ---------- */
+
+export interface CostiUnitari {
+  piantaNuova: number;
+  rimozione: number;
+  smaltimento: number;
+  preparazioneTerreno: number;
+  messaDimora: number;
+  tutore: number;
+  irrigazione: number;
+  potaturaRecupero: number;
+  cureColturali: number;
+  monitoraggio: number;
+}
+
+export const DEFAULT_COSTI: CostiUnitari = {
+  piantaNuova: 60,
+  rimozione: 25,
+  smaltimento: 10,
+  preparazioneTerreno: 15,
+  messaDimora: 30,
+  tutore: 8,
+  irrigazione: 12,
+  potaturaRecupero: 20,
+  cureColturali: 15,
+  monitoraggio: 5
+};
+
+export const ETICHETTE_COSTI: { chiave: keyof CostiUnitari; label: string; gruppo: 'sostituzione' | 'rimozione' | 'recupero' | 'monitoraggio' }[] = [
+  { chiave: 'piantaNuova', label: 'Pianta nuova', gruppo: 'sostituzione' },
+  { chiave: 'preparazioneTerreno', label: 'Preparazione terreno', gruppo: 'sostituzione' },
+  { chiave: 'messaDimora', label: 'Messa a dimora', gruppo: 'sostituzione' },
+  { chiave: 'tutore', label: 'Tutore', gruppo: 'sostituzione' },
+  { chiave: 'irrigazione', label: 'Irrigazione iniziale', gruppo: 'sostituzione' },
+  { chiave: 'rimozione', label: 'Rimozione pianta danneggiata', gruppo: 'rimozione' },
+  { chiave: 'smaltimento', label: 'Smaltimento', gruppo: 'rimozione' },
+  { chiave: 'potaturaRecupero', label: 'Potatura di recupero', gruppo: 'recupero' },
+  { chiave: 'cureColturali', label: 'Cure colturali', gruppo: 'recupero' },
+  { chiave: 'monitoraggio', label: 'Monitoraggio', gruppo: 'monitoraggio' }
+];
+
+/** Riga di mancata funzione o altro danno: importo a corpo oppure valore annuo × anni. */
+export interface VoceDanno {
+  descrizione: string;
+  tipo: 'corpo' | 'annuo';
+  valore: number; // importo a corpo, oppure valore annuo
+  anni?: number; // solo se tipo === 'annuo'
+}
+
+export const FUNZIONI_SUGGERITE = [
+  'Perdita funzione frangivento',
+  'Perdita privacy',
+  'Perdita funzione ornamentale',
+  'Perdita funzione paesaggistica',
+  'Perdita delimitazione'
+];
+
+export interface Stima {
+  praticaId: number;
+  costi: CostiUnitari;
+  mancataFunzione: VoceDanno[];
+  altriDanni: VoceDanno[];
+  prezziarioNota?: string;
+  note?: string;
+  updatedAt: number;
+}
+
 export const db = new Dexie('rilievo-incendi') as Dexie & {
   pratiche: EntityTable<Pratica, 'id'>;
   unita: EntityTable<Unita, 'id'>;
   piante: EntityTable<Pianta, 'id'>;
   foto: EntityTable<Foto, 'id'>;
   settings: EntityTable<Setting, 'key'>;
+  stime: EntityTable<Stima, 'praticaId'>;
 };
 
 db.version(1).stores({
@@ -158,6 +226,10 @@ db.version(1).stores({
   piante: '++id, unitaId, praticaId, [unitaId+numero]',
   foto: '++id, praticaId, unitaId, piantaId',
   settings: 'key'
+});
+
+db.version(2).stores({
+  stime: 'praticaId'
 });
 
 export function emptyConteggi(): Record<Classe, number> {

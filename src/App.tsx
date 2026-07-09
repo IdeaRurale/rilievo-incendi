@@ -10,6 +10,8 @@ import { lazy, Suspense } from 'react';
 
 const Mappa = lazy(() => import('./pages/Mappa'));
 import ClassiSettings from './pages/ClassiSettings';
+import StimaEconomica from './pages/StimaEconomica';
+import Relazione from './pages/Relazione';
 
 export default function App() {
   return (
@@ -33,6 +35,8 @@ export default function App() {
           }
         />
         <Route path="/classi" element={<ClassiSettings />} />
+        <Route path="/pratica/:id/stima" element={<StimaEconomica />} />
+        <Route path="/pratica/:id/relazione" element={<Relazione />} />
       </Routes>
     </HashRouter>
   );
