@@ -206,10 +206,65 @@ export interface Stima {
   costi: CostiUnitari;
   mancataFunzione: VoceDanno[];
   altriDanni: VoceDanno[];
+  estimo?: EstimoRuraleInput;
   prezziarioNota?: string;
   note?: string;
   updatedAt: number;
 }
+
+export interface EstimoRuraleInput {
+  superficieHa: number;
+  livelloDanno: number; // da 0 a 1
+  valoreMercatoHa: number;
+  valoreTerrenoNudoHa: number;
+  produzionePersaQHa: number;
+  prezzoOliveQ: number;
+  speseRisparmiateHa: number;
+  usaRipartoRilievo: boolean;
+  quotaRecupero: number; // da 0 a 1, usata se usaRipartoRilievo = false
+  quotaReimpianto: number; // da 0 a 1, usata se usaRipartoRilievo = false
+  riduzioneResaRecuperoPct: number;
+  anniRipresaRecupero: number;
+  anniImproduttivitaNuove: number;
+  anniProduttivitaCrescenteNuove: number;
+  redditoNettoAnnuoHa: number;
+  saggioSconto: number; // es. 0.03 = 3%
+  speseStraordinarie: number;
+  danniPaesaggistici: VoceDanno[];
+  contraddittorio: boolean;
+  periziaGiurata: boolean;
+  noteQuadroTecnico?: string;
+}
+
+export const DEFAULT_ESTIMO_RURALE: EstimoRuraleInput = {
+  superficieHa: 0,
+  livelloDanno: 0,
+  valoreMercatoHa: 0,
+  valoreTerrenoNudoHa: 0,
+  produzionePersaQHa: 0,
+  prezzoOliveQ: 0,
+  speseRisparmiateHa: 0,
+  usaRipartoRilievo: true,
+  quotaRecupero: 0,
+  quotaReimpianto: 0,
+  riduzioneResaRecuperoPct: 40,
+  anniRipresaRecupero: 4,
+  anniImproduttivitaNuove: 5,
+  anniProduttivitaCrescenteNuove: 5,
+  redditoNettoAnnuoHa: 0,
+  saggioSconto: 0.03,
+  speseStraordinarie: 0,
+  danniPaesaggistici: [
+    {
+      descrizione: 'Danno paesaggistico e ornamentale in adiacenza ad attivita turistica',
+      tipo: 'annuo',
+      valore: 0,
+      anni: 5
+    }
+  ],
+  contraddittorio: true,
+  periziaGiurata: true
+};
 
 export const db = new Dexie('rilievo-incendi') as Dexie & {
   pratiche: EntityTable<Pratica, 'id'>;

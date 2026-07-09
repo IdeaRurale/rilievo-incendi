@@ -8,6 +8,7 @@ import {
   type Foto,
   type Pianta,
   type Pratica,
+  type Stima,
   type Unita
 } from '../db';
 import { esitoEffettivo } from './stats';
@@ -39,12 +40,13 @@ interface FotoExport extends Omit<Foto, 'blob' | 'id'> {
 
 export interface PraticaExport {
   formato: 'rilievo-incendi';
-  versione: 1;
+  versione: 1 | 2;
   esportataIl: string;
   pratica: Pratica;
   unita: Unita[];
   piante: Pianta[];
   foto: FotoExport[];
+  stima?: Stima;
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -66,10 +68,11 @@ function base64ToBlob(base64: string, mime: string): Blob {
 export async function esportaPratica(praticaId: number): Promise<void> {
   const pratica = await db.pratiche.get(praticaId);
   if (!pratica) throw new Error('Pratica non trovata');
-  const [unita, piante, fotoRaw] = await Promise.all([
+  const [unita, piante, fotoRaw, stima] = await Promise.all([
     db.unita.where('praticaId').equals(praticaId).toArray(),
     db.piante.where('praticaId').equals(praticaId).toArray(),
-    db.foto.where('praticaId').equals(praticaId).toArray()
+    db.foto.where('praticaId').equals(praticaId).toArray(),
+    db.stime.get(praticaId)
   ]);
   const foto: FotoExport[] = [];
   for (const f of fotoRaw) {
@@ -78,12 +81,13 @@ export async function esportaPratica(praticaId: number): Promise<void> {
   }
   const dati: PraticaExport = {
     formato: 'rilievo-incendi',
-    versione: 1,
+    versione: 2,
     esportataIl: new Date().toISOString(),
     pratica,
     unita,
     piante,
-    foto
+    foto,
+    stima
   };
   const nome = `rilievo-${(pratica.titolo || 'pratica').replace(/[^\w\-]+/g, '_')}-${new Date()
     .toISOString()
@@ -162,11 +166,11 @@ export async function importaPratica(file: File): Promise<number> {
   } catch {
     throw new Error('Il file non è un JSON valido.');
   }
-  if (dati.formato !== 'rilievo-incendi' || dati.versione !== 1) {
+  if (dati.formato !== 'rilievo-incendi' || (dati.versione !== 1 && dati.versione !== 2)) {
     throw new Error('Il file non è un rilievo esportato da questa app.');
   }
 
-  return db.transaction('rw', [db.pratiche, db.unita, db.piante, db.foto], async () => {
+  return db.transaction('rw', [db.pratiche, db.unita, db.piante, db.foto, db.stime], async () => {
     const { id: _pid, ...pratica } = dati.pratica;
     const nuovaPraticaId = (await db.pratiche.add({ ...pratica, createdAt: Date.now() })) as number;
 
@@ -197,6 +201,10 @@ export async function importaPratica(file: File): Promise<number> {
         piantaId: meta.piantaId !== undefined ? mappaPiante.get(meta.piantaId) ?? meta.piantaId : undefined,
         blob: base64ToBlob(base64, mime)
       });
+    }
+
+    if (dati.stima) {
+      await db.stime.put({ ...dati.stima, praticaId: nuovaPraticaId });
     }
 
     return nuovaPraticaId;

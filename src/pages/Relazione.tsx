@@ -3,9 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Link, useParams } from 'react-router-dom';
 import { db, type Stima } from '../db';
 import { useClassi } from '../lib/useClassi';
-import { computeStats, fmtEuro } from '../lib/stats';
-import { calcolaStima } from '../lib/stima';
-import { Topbar } from '../components/Layout';
+import { computeStats } from '../lib/stats';
+import { calcolaEstimoRurale, calcolaStima, type RigaEstimo } from '../lib/stima';
 
 function fmtData(iso?: string) {
   if (!iso) return '___________';
@@ -13,10 +12,21 @@ function fmtData(iso?: string) {
   return `${d}/${m}/${y}`;
 }
 
-interface Sezione {
-  titolo: string;
-  righe: { voce: string; formula: string; totale: number }[];
-  totale: number;
+function euro(n: number): string {
+  return n.toLocaleString('it-IT', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+function pct(n: number): string {
+  return `${(n * 100).toLocaleString('it-IT', { maximumFractionDigits: 2 })}%`;
+}
+
+function num(n: number): string {
+  return n.toLocaleString('it-IT', { maximumFractionDigits: 2 });
 }
 
 export default function Relazione() {
@@ -28,246 +38,245 @@ export default function Relazione() {
   const piante = useLiveQuery(() => db.piante.where('praticaId').equals(praticaId).toArray(), [praticaId]);
   const [stima, setStima] = useState<Stima | null>(null);
 
-  useEffect(() => { db.stime.get(praticaId).then(s => setStima(s ?? null)); }, [praticaId]);
+  useEffect(() => {
+    db.stime.get(praticaId).then((s) => setStima(s ?? null));
+  }, [praticaId]);
 
   if (!pratica || !unitaList || !piante) return null;
 
   const stats = computeStats(unitaList, piante, classi);
-  const calc = stima ? calcolaStima(stats, stima) : null;
-
-  const sezioni: Sezione[] = calc ? [
-    {
-      titolo: 'A — Rimozione e smaltimento piante danneggiate',
-      righe: calc.righeRimozione.map(r => ({ voce: r.voce, formula: r.formula, totale: r.totale })),
-      totale: calc.totRimozione
-    },
-    {
-      titolo: 'B — Nuovo impianto (piante da sostituire)',
-      righe: calc.righeImpianto.map(r => ({ voce: r.voce, formula: r.formula, totale: r.totale })),
-      totale: calc.totImpianto
-    },
-    {
-      titolo: 'C — Recupero piante danneggiate',
-      righe: calc.righeRecupero.map(r => ({ voce: r.voce, formula: r.formula, totale: r.totale })),
-      totale: calc.totRecupero
-    },
-    {
-      titolo: 'D — Monitoraggio',
-      righe: calc.righeMonitoraggio.map(r => ({ voce: r.voce, formula: r.formula, totale: r.totale })),
-      totale: calc.totMonitoraggio
-    },
-    {
-      titolo: 'E — Mancata funzione e danni indiretti',
-      righe: calc.righeMancataFunzione.map(r => ({ voce: r.descrizione, formula: r.formula, totale: r.importo })),
-      totale: calc.totMancataFunzione
-    },
-    {
-      titolo: 'F — Altri danni',
-      righe: calc.righeAltriDanni.map(r => ({ voce: r.descrizione, formula: r.formula, totale: r.importo })),
-      totale: calc.totAltriDanni
-    },
-  ].filter(s => s.righe.length > 0) : [];
+  const calcPiante = stima ? calcolaStima(stats, stima) : null;
+  const calcEstimo = stima ? calcolaEstimoRurale(stats, stima) : null;
 
   return (
     <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
-      {/* Barra di controllo (nascosta in stampa) */}
-      <div className="no-print" style={{ background: 'var(--verde)', color: '#fff', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Link to={`/pratica/${id}/stima`} style={{ color: '#fff', fontSize: 22, fontWeight: 700, textDecoration: 'none' }}>‹</Link>
-        <span style={{ flex: 1, fontWeight: 700 }}>Relazione tecnica</span>
+      <div className="no-print barra-relazione">
+        <Link to={`/pratica/${id}/stima`} className="indietro-relazione">‹</Link>
+        <span style={{ flex: 1, fontWeight: 800 }}>Scheda pre-relazione tecnica</span>
         {!stima && (
-          <Link to={`/pratica/${id}/stima`} style={{ background: 'rgba(255,255,255,.2)', color: '#fff', borderRadius: 8, padding: '8px 12px', fontSize: 14, fontWeight: 800, textDecoration: 'none' }}>
-            Compila stima →
+          <Link to={`/pratica/${id}/stima`} className="link-relazione">
+            Compila stima
           </Link>
         )}
-        <button onClick={() => window.print()} style={{ background: '#fff', color: 'var(--verde)', border: 'none', borderRadius: 8, padding: '10px 16px', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>
-          🖨 STAMPA / PDF
+        <button onClick={() => window.print()} className="stampa-relazione">
+          STAMPA / PDF
         </button>
       </div>
 
       <div className="pagina-stampa">
-        {/* INTESTAZIONE */}
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 2, color: '#555', marginBottom: 4 }}>Relazione tecnica — Stima del danno da incendio</div>
-          <h1 style={{ fontSize: 22, margin: '0 0 4px', fontWeight: 900 }}>{pratica.titolo}</h1>
-          {pratica.cliente && <div style={{ fontSize: 14, color: '#444' }}>Committente: <b>{pratica.cliente}</b></div>}
+        <header style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div className="eyebrow">Scheda pre-relazione tecnica estimativa</div>
+          <h1 style={{ fontSize: 23, margin: '0 0 5px', fontWeight: 900 }}>{pratica.titolo}</h1>
+          {pratica.cliente && <div>Committente: <b>{pratica.cliente}</b></div>}
           {(pratica.comune || pratica.localita) && (
-            <div style={{ fontSize: 14, color: '#444' }}>
-              Luogo: <b>{[pratica.comune, pratica.localita].filter(Boolean).join(' — ')}</b>
-            </div>
+            <div>Ubicazione: <b>{[pratica.comune, pratica.localita].filter(Boolean).join(' - ')}</b></div>
           )}
-          <div style={{ fontSize: 14, color: '#444', marginTop: 2 }}>
-            {pratica.dataIncendio && <>Incendio: <b>{fmtData(pratica.dataIncendio)}</b>&nbsp;&nbsp;</>}
+          <div>
+            {pratica.dataIncendio && <>Evento incendio: <b>{fmtData(pratica.dataIncendio)}</b>&nbsp;&nbsp;</>}
             {pratica.dataSopralluogo && <>Sopralluogo: <b>{fmtData(pratica.dataSopralluogo)}</b></>}
           </div>
-          {pratica.tecnico && <div style={{ fontSize: 13, marginTop: 4, color: '#666' }}>Tecnico: {pratica.tecnico}</div>}
-        </div>
+          {pratica.tecnico && <div style={{ marginTop: 4 }}>Tecnico incaricato: {pratica.tecnico}</div>}
+        </header>
 
-        <hr style={{ border: 'none', borderTop: '2px solid #14532d', marginBottom: 24 }} />
+        <hr style={{ border: 'none', borderTop: '2px solid #14532d', marginBottom: 22 }} />
 
-        {/* 1. CENSIMENTO */}
-        <h2 className="titolo-sezione">1. Risultati del censimento</h2>
-
-        <table className="tabella-relazione">
-          <thead>
-            <tr><th>Voce</th><th style={{ textAlign: 'right' }}>N.</th><th style={{ textAlign: 'right' }}>%</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>Piante teoriche</td><td style={{ textAlign: 'right' }}>{stats.teoriche || '—'}</td><td /></tr>
-            <tr><td>Piante censite</td><td style={{ textAlign: 'right' }}><b>{stats.censite}</b></td><td /></tr>
-            {classi.map(c => (
-              <tr key={c.codice}>
-                <td style={{ paddingLeft: 16 }}>
-                  <span style={{ display: 'inline-block', width: 10, height: 10, background: c.colore, borderRadius: 3, marginRight: 6, verticalAlign: 'middle' }} />
-                  {c.nome} ({c.pctMin}–{c.pctMax}%)
-                </td>
-                <td style={{ textAlign: 'right' }}>{stats.perClasse[c.codice]}</td>
-                <td style={{ textAlign: 'right', color: '#555' }}>
-                  {stats.censite > 0 ? `${((stats.perClasse[c.codice] / stats.censite) * 100).toFixed(1)}%` : '—'}
-                </td>
-              </tr>
-            ))}
-            <tr style={{ borderTop: '1px solid #ccc' }}><td><b>Danneggiate totali</b></td><td style={{ textAlign: 'right' }}><b>{stats.danneggiate}</b></td><td style={{ textAlign: 'right' }}><b>{stats.pctDanneggiate}%</b></td></tr>
-            <tr><td>Di cui: da sostituire</td><td style={{ textAlign: 'right' }}>{stats.daSostituire}</td><td style={{ textAlign: 'right' }}>{stats.pctSostituire}%</td></tr>
-            <tr><td>Da monitorare</td><td style={{ textAlign: 'right' }}>{stats.daMonitorare}</td><td /></tr>
-            <tr><td>Danno medio ponderato</td><td style={{ textAlign: 'right' }} colSpan={2}><b>{stats.dannoMedio}%</b></td></tr>
-          </tbody>
-        </table>
-
-        {/* Unità di rilievo */}
-        {unitaList.length > 0 && (
-          <>
-            <h3 style={{ fontSize: 14, marginTop: 18, marginBottom: 8 }}>Unità di rilievo</h3>
-            <table className="tabella-relazione">
-              <thead>
-                <tr><th>Unità</th><th>Specie</th><th style={{ textAlign: 'right' }}>Teoriche</th><th style={{ textAlign: 'right' }}>Censite</th></tr>
-              </thead>
-              <tbody>
-                {unitaList.map(u => {
-                  const np = piante.filter(p => p.unitaId === u.id!).length;
-                  const nc = u.tipo === 'gruppo' && u.conteggi
-                    ? Object.values(u.conteggi).reduce((a, b) => a + b, 0)
-                    : np;
-                  return (
-                    <tr key={u.id}>
-                      <td>{u.nome}</td>
-                      <td>{u.specie ?? '—'}</td>
-                      <td style={{ textAlign: 'right' }}>{u.numeroTeorico ?? '—'}</td>
-                      <td style={{ textAlign: 'right' }}>{nc}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </>
-        )}
-
-        {/* 2. STIMA ECONOMICA */}
-        {calc && (
-          <>
-            <h2 className="titolo-sezione" style={{ marginTop: 28 }}>2. Stima economica del danno</h2>
-            {stima?.prezziarioNota && (
-              <p style={{ fontSize: 13, color: '#555', marginBottom: 12 }}>
-                Riferimento prezziario: {stima.prezziarioNota}
-              </p>
-            )}
-
-            {sezioni.map(sez => (
-              <div key={sez.titolo} style={{ marginBottom: 18 }}>
-                <h3 style={{ fontSize: 14, marginBottom: 6, color: '#14532d' }}>{sez.titolo}</h3>
-                <table className="tabella-relazione">
-                  <thead>
-                    <tr><th>Voce</th><th>Formula</th><th style={{ textAlign: 'right' }}>Importo</th></tr>
-                  </thead>
-                  <tbody>
-                    {sez.righe.map((r, i) => (
-                      <tr key={i}>
-                        <td>{r.voce}</td>
-                        <td style={{ color: '#555', fontSize: 13 }}>{r.formula}</td>
-                        <td style={{ textAlign: 'right' }}>{fmtEuro(r.totale)}</td>
-                      </tr>
-                    ))}
-                    <tr style={{ borderTop: '1px solid #ccc', fontWeight: 700 }}>
-                      <td colSpan={2}>Subtotale {sez.titolo.split('—')[0].trim()}</td>
-                      <td style={{ textAlign: 'right' }}>{fmtEuro(sez.totale)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            ))}
-
-            {/* Riepilogo finale */}
-            <table className="tabella-relazione" style={{ marginTop: 16, borderTop: '2px solid #14532d' }}>
-              <tbody>
-                {calc.totRimozione > 0 && <tr><td>A — Rimozione e smaltimento</td><td style={{ textAlign: 'right' }}>{fmtEuro(calc.totRimozione)}</td></tr>}
-                {calc.totImpianto > 0 && <tr><td>B — Nuovo impianto</td><td style={{ textAlign: 'right' }}>{fmtEuro(calc.totImpianto)}</td></tr>}
-                {calc.totRecupero > 0 && <tr><td>C — Recupero</td><td style={{ textAlign: 'right' }}>{fmtEuro(calc.totRecupero)}</td></tr>}
-                {calc.totMonitoraggio > 0 && <tr><td>D — Monitoraggio</td><td style={{ textAlign: 'right' }}>{fmtEuro(calc.totMonitoraggio)}</td></tr>}
-                {calc.totMancataFunzione > 0 && <tr><td>E — Mancata funzione</td><td style={{ textAlign: 'right' }}>{fmtEuro(calc.totMancataFunzione)}</td></tr>}
-                {calc.totAltriDanni > 0 && <tr><td>F — Altri danni</td><td style={{ textAlign: 'right' }}>{fmtEuro(calc.totAltriDanni)}</td></tr>}
-                <tr style={{ fontSize: 18, fontWeight: 900, borderTop: '2px solid #14532d', color: '#14532d' }}>
-                  <td>TOTALE DANNO STIMATO</td>
-                  <td style={{ textAlign: 'right' }}>{fmtEuro(calc.totaleGenerale)}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            {stima?.note && (
-              <div style={{ marginTop: 16, fontSize: 13, color: '#444', border: '1px solid #d1d5db', borderRadius: 8, padding: 10 }}>
-                <b>Note tecniche:</b> {stima.note}
-              </div>
-            )}
-          </>
-        )}
-
-        {!calc && (
-          <div style={{ padding: 20, textAlign: 'center', color: '#888', border: '2px dashed #d1d5db', borderRadius: 12, marginTop: 20 }}>
-            Stima economica non ancora compilata.<br />
-            <Link to={`/pratica/${id}/stima`} style={{ color: 'var(--verde)', fontWeight: 700 }}>Compila la stima →</Link>
+        {!calcEstimo && (
+          <div className="box-vuoto">
+            Stima estimativa non ancora compilata.
+            <br />
+            <Link to={`/pratica/${id}/stima`}>Apri la scheda di stima</Link>
           </div>
         )}
 
-        {/* FIRMA */}
-        <div style={{ marginTop: 40, borderTop: '1px solid #ccc', paddingTop: 20 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30 }}>
-            <div>
-              <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>Data e luogo</div>
-              <div style={{ fontSize: 14 }}>{pratica.comune || '_______________'}, {fmtData(pratica.dataSopralluogo)}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>Firma del tecnico</div>
-              <div style={{ fontSize: 14 }}>{pratica.tecnico || '_______________'}</div>
-              <div style={{ marginTop: 30, borderTop: '1px solid #999', width: 180 }} />
-            </div>
+        {calcEstimo && (
+          <>
+            <h2 className="titolo-sezione">1. Quadro tecnico</h2>
+            <p>
+              Il fondo oggetto di stima e' costituito da oliveto interessato da incendio. La superficie colpita
+              indicata nella scheda e' pari a <b>{num(calcEstimo.input.superficieHa)} ha</b>, con livello medio di
+              danneggiamento <b>LD = {pct(calcEstimo.input.livelloDanno)}</b>.
+            </p>
+            <p>
+              Il riparto tecnico usato ai fini reddituali individua <b>{num(calcEstimo.superficieRecuperoHa)} ha</b>{' '}
+              in recupero e <b>{num(calcEstimo.superficieReimpiantoHa)} ha</b> equivalenti a reimpianto. Il riparto
+              deriva {calcEstimo.input.usaRipartoRilievo ? 'dal censimento delle piante' : 'dai valori inseriti dal tecnico'}.
+            </p>
+            {calcEstimo.input.noteQuadroTecnico && <p>{calcEstimo.input.noteQuadroTecnico}</p>}
+
+            <table className="tabella-relazione">
+              <tbody>
+                <tr><td>Piante censite</td><td style={{ textAlign: 'right' }}>{stats.censite}</td></tr>
+                <tr><td>Piante danneggiate</td><td style={{ textAlign: 'right' }}>{stats.danneggiate} ({stats.pctDanneggiate}%)</td></tr>
+                <tr><td>Piante da sostituire</td><td style={{ textAlign: 'right' }}>{stats.daSostituire} ({stats.pctSostituire}%)</td></tr>
+                <tr><td>Danno medio ponderato da classi</td><td style={{ textAlign: 'right' }}>{stats.dannoMedio}%</td></tr>
+              </tbody>
+            </table>
+
+            <h3 className="sottotitolo">Distribuzione per classe</h3>
+            <table className="tabella-relazione">
+              <thead>
+                <tr><th>Classe</th><th>Intervallo danno</th><th style={{ textAlign: 'right' }}>N.</th></tr>
+              </thead>
+              <tbody>
+                {classi.map((c) => (
+                  <tr key={c.codice}>
+                    <td>{c.nome}</td>
+                    <td>{c.pctMin}-{c.pctMax}%</td>
+                    <td style={{ textAlign: 'right' }}>{stats.perClasse[c.codice]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <h2 className="titolo-sezione">2. Stima patrimoniale - danno emergente</h2>
+            <TabellaRighe righe={calcEstimo.righePatrimoniali} totale={calcEstimo.dannoEmergente} />
+
+            <h2 className="titolo-sezione">3. Stima reddituale - lucro cessante</h2>
+            <TabellaRighe righe={calcEstimo.righeReddituali} totale={calcEstimo.lucroCessante} />
+
+            <h2 className="titolo-sezione">4. Sintesi risarcitoria</h2>
+            <table className="tabella-relazione riepilogo-finale">
+              <tbody>
+                <tr><td>Danno emergente patrimoniale</td><td style={{ textAlign: 'right' }}>{euro(calcEstimo.dannoEmergente)}</td></tr>
+                <tr><td>Lucro cessante reddituale</td><td style={{ textAlign: 'right' }}>{euro(calcEstimo.lucroCessante)}</td></tr>
+                <tr className="totale"><td>Danno totale stimato</td><td style={{ textAlign: 'right' }}>{euro(calcEstimo.dannoTotale)}</td></tr>
+              </tbody>
+            </table>
+            <p className="nota">
+              Nota fiscale: la quota stimata come danno emergente ha natura reintegrativa patrimoniale; la quota
+              stimata come lucro cessante sostituisce redditi non conseguiti e va distinta ai fini IRPEF/IRES secondo
+              il titolo liquidatorio e la posizione fiscale del beneficiario.
+            </p>
+
+            <h2 className="titolo-sezione">5. Parcella estimativa - D.M. 372/1993, Tabella 3 Incendio</h2>
+            <table className="tabella-relazione">
+              <thead>
+                <tr><th>Scaglione</th><th style={{ textAlign: 'right' }}>Quota</th><th style={{ textAlign: 'right' }}>Aliquota</th><th style={{ textAlign: 'right' }}>Compenso</th></tr>
+              </thead>
+              <tbody>
+                {calcEstimo.righeTariffa.map((r) => (
+                  <tr key={r.descrizione}>
+                    <td>{r.descrizione}</td>
+                    <td style={{ textAlign: 'right' }}>{euro(r.quota)}</td>
+                    <td style={{ textAlign: 'right' }}>{pct(r.aliquota)}</td>
+                    <td style={{ textAlign: 'right' }}>{euro(r.importo)}</td>
+                  </tr>
+                ))}
+                <tr><td colSpan={3}>Onorario base</td><td style={{ textAlign: 'right' }}>{euro(calcEstimo.onorarioBase)}</td></tr>
+                {calcEstimo.maggiorazioneContraddittorio > 0 && (
+                  <tr><td colSpan={3}>Maggiorazione contraddittorio 30%</td><td style={{ textAlign: 'right' }}>{euro(calcEstimo.maggiorazioneContraddittorio)}</td></tr>
+                )}
+                {calcEstimo.maggiorazioneGiurata > 0 && (
+                  <tr><td colSpan={3}>Maggiorazione perizia giurata 10%</td><td style={{ textAlign: 'right' }}>{euro(calcEstimo.maggiorazioneGiurata)}</td></tr>
+                )}
+                <tr className="totale"><td colSpan={3}>Totale parcella estimativa</td><td style={{ textAlign: 'right' }}>{euro(calcEstimo.onorarioTotale)}</td></tr>
+              </tbody>
+            </table>
+
+            {calcPiante && calcPiante.totaleGenerale > 0 && (
+              <>
+                <h2 className="titolo-sezione">6. Computo operativo da censimento</h2>
+                <table className="tabella-relazione">
+                  <tbody>
+                    {calcPiante.totRimozione > 0 && <tr><td>Rimozione e smaltimento</td><td style={{ textAlign: 'right' }}>{euro(calcPiante.totRimozione)}</td></tr>}
+                    {calcPiante.totImpianto > 0 && <tr><td>Nuovo impianto</td><td style={{ textAlign: 'right' }}>{euro(calcPiante.totImpianto)}</td></tr>}
+                    {calcPiante.totRecupero > 0 && <tr><td>Recupero e potature</td><td style={{ textAlign: 'right' }}>{euro(calcPiante.totRecupero)}</td></tr>}
+                    {calcPiante.totMonitoraggio > 0 && <tr><td>Monitoraggio</td><td style={{ textAlign: 'right' }}>{euro(calcPiante.totMonitoraggio)}</td></tr>}
+                    {calcPiante.totMancataFunzione > 0 && <tr><td>Mancata funzione da computo</td><td style={{ textAlign: 'right' }}>{euro(calcPiante.totMancataFunzione)}</td></tr>}
+                    {calcPiante.totAltriDanni > 0 && <tr><td>Altri danni da computo</td><td style={{ textAlign: 'right' }}>{euro(calcPiante.totAltriDanni)}</td></tr>}
+                    <tr className="totale"><td>Totale computo operativo</td><td style={{ textAlign: 'right' }}>{euro(calcPiante.totaleGenerale)}</td></tr>
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            {stima?.prezziarioNota && (
+              <p className="nota"><b>Fonti valori/prezzi:</b> {stima.prezziarioNota}</p>
+            )}
+            {stima?.note && (
+              <p className="nota"><b>Note tecniche:</b> {stima.note}</p>
+            )}
+          </>
+        )}
+
+        <div className="firma">
+          <div>
+            <div className="firma-label">Data e luogo</div>
+            <div>{pratica.comune || '_______________'}, {fmtData(pratica.dataSopralluogo)}</div>
+          </div>
+          <div>
+            <div className="firma-label">Firma del tecnico</div>
+            <div>{pratica.tecnico || '_______________'}</div>
+            <div className="linea-firma" />
           </div>
         </div>
       </div>
 
       <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          body { background: white !important; }
-          .pagina-stampa { padding: 20mm; max-width: 100%; }
+        .barra-relazione {
+          background: var(--verde);
+          color: #fff;
+          padding: 10px 14px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .indietro-relazione {
+          color: #fff;
+          font-size: 26px;
+          font-weight: 800;
+          text-decoration: none;
+          line-height: 1;
+        }
+        .link-relazione {
+          color: #fff;
+          font-weight: 800;
+          text-decoration: none;
+          background: rgba(255,255,255,.18);
+          border-radius: 8px;
+          padding: 9px 11px;
+        }
+        .stampa-relazione {
+          background: #fff;
+          color: var(--verde);
+          border: none;
+          border-radius: 8px;
+          padding: 10px 14px;
+          font-weight: 900;
+          font-size: 14px;
         }
         .pagina-stampa {
-          max-width: 760px;
+          max-width: 780px;
           margin: 0 auto;
           padding: 24px 20px 60px;
-          background: white;
+          background: #fff;
           color: #111;
+          line-height: 1.45;
+        }
+        .eyebrow {
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 1.6px;
+          color: #555;
+          margin-bottom: 5px;
         }
         .titolo-sezione {
           font-size: 16px;
-          font-weight: 800;
+          font-weight: 900;
           color: #14532d;
           border-bottom: 2px solid #14532d;
           padding-bottom: 4px;
-          margin-bottom: 12px;
+          margin: 24px 0 10px;
+        }
+        .sottotitolo {
+          font-size: 14px;
+          margin: 16px 0 7px;
         }
         .tabella-relazione {
           width: 100%;
           border-collapse: collapse;
           font-size: 14px;
-          margin-bottom: 4px;
+          margin-bottom: 8px;
         }
         .tabella-relazione th {
           background: #f3f4f6;
@@ -275,16 +284,91 @@ export default function Relazione() {
           text-align: left;
           font-size: 12px;
           text-transform: uppercase;
-          letter-spacing: 0.05em;
+          letter-spacing: .04em;
           border-bottom: 2px solid #d1d5db;
         }
         .tabella-relazione td {
-          padding: 5px 8px;
+          padding: 6px 8px;
           border-bottom: 1px solid #e5e7eb;
           vertical-align: top;
         }
-        .tabella-relazione tr:last-child td { border-bottom: none; }
+        .tabella-relazione .totale td,
+        .riepilogo-finale .totale td {
+          font-weight: 900;
+          color: #14532d;
+          border-top: 2px solid #14532d;
+        }
+        .nota {
+          font-size: 13px;
+          color: #444;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          padding: 9px 10px;
+          margin-top: 12px;
+        }
+        .box-vuoto {
+          padding: 20px;
+          text-align: center;
+          color: #666;
+          border: 2px dashed #d1d5db;
+          border-radius: 12px;
+        }
+        .box-vuoto a {
+          color: #14532d;
+          font-weight: 800;
+        }
+        .firma {
+          margin-top: 42px;
+          border-top: 1px solid #ccc;
+          padding-top: 20px;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 30px;
+        }
+        .firma-label {
+          font-size: 12px;
+          color: #777;
+          margin-bottom: 6px;
+        }
+        .linea-firma {
+          margin-top: 32px;
+          border-top: 1px solid #999;
+          width: 190px;
+        }
+        @media print {
+          .no-print { display: none !important; }
+          body { background: #fff !important; }
+          .pagina-stampa { padding: 18mm; max-width: 100%; }
+          .titolo-sezione { break-after: avoid; }
+          table { break-inside: avoid; }
+        }
       `}</style>
     </div>
+  );
+}
+
+function TabellaRighe({ righe, totale }: { righe: RigaEstimo[]; totale: number }) {
+  if (righe.length === 0) {
+    return <p className="nota">Nessuna voce valorizzata in questa sezione.</p>;
+  }
+  return (
+    <table className="tabella-relazione">
+      <thead>
+        <tr><th>Voce</th><th>Formula</th><th style={{ textAlign: 'right' }}>Importo</th></tr>
+      </thead>
+      <tbody>
+        {righe.map((r, i) => (
+          <tr key={i}>
+            <td>{r.voce.replace('[Patrimoniale] ', '').replace('[Reddituale] ', '')}</td>
+            <td style={{ color: '#555', fontSize: 13 }}>{r.formula}</td>
+            <td style={{ textAlign: 'right' }}>{euro(r.importo)}</td>
+          </tr>
+        ))}
+        <tr className="totale">
+          <td colSpan={2}>Subtotale</td>
+          <td style={{ textAlign: 'right' }}>{euro(totale)}</td>
+        </tr>
+      </tbody>
+    </table>
   );
 }

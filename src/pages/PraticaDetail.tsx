@@ -97,11 +97,9 @@ export default function PraticaDetail() {
             📊 RIEPILOGO ({stats.censite} piante)
           </Link>
         )}
-        {stats.censite > 0 && (
-          <Link to={`/pratica/${id}/stima`} className="btn btn-primario">
+        <Link to={`/pratica/${id}/stima`} className="btn btn-primario">
             💶 STIMA ECONOMICA / RELAZIONE TECNICA
-          </Link>
-        )}
+        </Link>
         <Link to={`/pratica/${id}/mappa`} className="btn btn-secondario">
           🗺 MAPPA DEL RILIEVO
         </Link>
