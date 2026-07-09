@@ -1,10 +1,14 @@
+import { useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../db';
 import { Schermo, Topbar } from '../components/Layout';
+import { importaPratica } from '../lib/exportImport';
 
 export default function Home() {
   const navigate = useNavigate();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [erroreImport, setErroreImport] = useState<string | null>(null);
   const pratiche = useLiveQuery(() => db.pratiche.orderBy('createdAt').reverse().toArray(), []);
   const lastUnitId = localStorage.getItem('ultimaUnita');
   const lastUnit = useLiveQuery(
@@ -39,6 +43,28 @@ export default function Home() {
         <Link to="/pratica/nuova" className="btn btn-secondario">
           + NUOVA PRATICA
         </Link>
+        <button className="btn btn-secondario" onClick={() => fileRef.current?.click()}>
+          📥 IMPORTA RILIEVO (file esportato)
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          style={{ display: 'none' }}
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            if (!f) return;
+            setErroreImport(null);
+            try {
+              const nuovoId = await importaPratica(f);
+              navigate(`/pratica/${nuovoId}`);
+            } catch (err) {
+              setErroreImport((err as Error).message);
+            }
+          }}
+        />
+        {erroreImport && <div className="avviso-errore">⚠ {erroreImport}</div>}
 
         {pratiche?.length === 0 && (
           <div className="vuoto">

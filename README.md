@@ -44,6 +44,9 @@ npm run preview   # anteprima della build
 - **Mappa del rilievo** (Leaflet): piante colorate per classe di danno, punti inizio/fine
   filare, foto georiferite, sfondo satellitare (Esri) o stradale (OSM). Le tessere delle zone
   già visitate restano in cache e visibili anche offline.
+- **Esporta/Importa**: dalla pratica, "Esporta rilievo" genera un file .json con tutto
+  (foto comprese) da condividere via AirDrop/Mail/File; dalla Home, "Importa rilievo" lo
+  ricarica su un altro dispositivo. I dati non passano mai da un server.
 
 \* la vibrazione usa `navigator.vibrate`, non supportata da iOS Safari: su iPhone la conferma
 è il flash visivo al centro dello schermo.

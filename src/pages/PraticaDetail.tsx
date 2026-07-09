@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Link, useParams } from 'react-router-dom';
+import { esportaPratica, scaricaCsv } from '../lib/exportImport';
 import { db, UNITA_TIPI, type Classe, type Unita } from '../db';
 import { Schermo, Topbar } from '../components/Layout';
 import { useClassi } from '../lib/useClassi';
@@ -28,6 +30,7 @@ function MicroBarra({ unita, perClasse }: { unita: Unita; perClasse: Record<Clas
 export default function PraticaDetail() {
   const { id } = useParams();
   const praticaId = Number(id);
+  const [msgExport, setMsgExport] = useState<string | null>(null);
   const classi = useClassi();
   const pratica = useLiveQuery(() => db.pratiche.get(praticaId), [praticaId]);
   const unitaList = useLiveQuery(
@@ -97,6 +100,37 @@ export default function PraticaDetail() {
         <Link to={`/pratica/${id}/mappa`} className="btn btn-secondario">
           🗺 MAPPA DEL RILIEVO
         </Link>
+        <button
+          className="btn btn-secondario"
+          onClick={async () => {
+            setMsgExport(null);
+            try {
+              await esportaPratica(praticaId);
+              setMsgExport('✓ Rilievo esportato: condividilo o salvalo, poi importalo sull’altro dispositivo.');
+            } catch (e) {
+              setMsgExport(`Errore: ${(e as Error).message}`);
+            }
+          }}
+        >
+          📤 ESPORTA RILIEVO (per altro dispositivo)
+        </button>
+        <button
+          className="btn btn-secondario"
+          onClick={async () => {
+            setMsgExport(null);
+            try {
+              await scaricaCsv(praticaId);
+              setMsgExport('✓ CSV del censimento scaricato: si apre con Excel.');
+            } catch (e) {
+              setMsgExport(`Errore: ${(e as Error).message}`);
+            }
+          }}
+        >
+          📄 SCARICA CSV (Excel)
+        </button>
+        {msgExport && (
+          <div className={msgExport.startsWith('✓') ? 'avviso-ok' : 'avviso-errore'}>{msgExport}</div>
+        )}
       </Schermo>
     </>
   );
