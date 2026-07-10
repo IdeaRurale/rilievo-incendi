@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Link, useParams } from 'react-router-dom';
 import { db, esitoLabel, UNITA_TIPI, type Classe, type Foto, type Pianta } from '../db';
 import { useClassi } from '../lib/useClassi';
 import { computeStats, esitoEffettivo } from '../lib/stats';
+import { elementoToPdf } from '../lib/pdf';
 import { fmtData } from './Home';
 
 interface FotoUrl {
@@ -26,6 +27,8 @@ export default function Verbale() {
   const foto = useLiveQuery(() => db.foto.where('praticaId').equals(praticaId).toArray(), [praticaId]);
 
   const [urls, setUrls] = useState<FotoUrl[]>([]);
+  const [pdfStato, setPdfStato] = useState<'idle' | 'genero' | 'errore'>('idle');
+  const articleRef = useRef<HTMLElement>(null);
 
   const nomeUnita = useMemo(
     () => new Map((unitaList ?? []).map((u) => [u.id!, u.nome])),
@@ -72,6 +75,21 @@ export default function Verbale() {
   const oggi = new Date().toLocaleDateString('it-IT');
   const luogo = pratica.comune || pratica.localita || '________';
 
+  async function salvaPdf() {
+    if (!articleRef.current) return;
+    setPdfStato('genero');
+    const nome = `verbale-${(pratica!.titolo || 'sopralluogo').replace(/[^\w\-]+/g, '_')}-${new Date()
+      .toISOString()
+      .slice(0, 10)}.pdf`;
+    try {
+      await elementoToPdf(articleRef.current, nome, pratica!.titolo);
+      setPdfStato('idle');
+    } catch (e) {
+      console.error(e);
+      setPdfStato('errore');
+    }
+  }
+
   const dett = (p: Pianta): string => {
     if (!p.dettaglio) return '';
     return (
@@ -85,14 +103,32 @@ export default function Verbale() {
     <div className="verbale-wrap">
       <div className="verbale-azioni no-print">
         <Link to={`/pratica/${id}`} className="btn btn-secondario" style={{ flex: 1 }}>
-          ‹ Indietro
+          ‹
         </Link>
-        <button className="btn btn-primario" style={{ flex: 2 }} onClick={() => window.print()}>
-          🖨 STAMPA / SALVA PDF
+        <button
+          className="btn btn-primario"
+          style={{ flex: 3 }}
+          onClick={salvaPdf}
+          disabled={pdfStato === 'genero'}
+        >
+          {pdfStato === 'genero' ? '⏳ Genero PDF…' : '📄 SCARICA PDF'}
+        </button>
+        <button
+          className="btn btn-secondario"
+          style={{ flex: 1 }}
+          onClick={() => window.print()}
+          title="Stampa dal browser"
+        >
+          🖨
         </button>
       </div>
+      {pdfStato === 'errore' && (
+        <div className="avviso-errore no-print" style={{ margin: '8px 12px' }}>
+          ⚠ Non è stato possibile generare il PDF. Riprova, oppure usa il pulsante 🖨 (stampa del browser).
+        </div>
+      )}
 
-      <article className="verbale">
+      <article className="verbale" ref={articleRef}>
         {/* ---------- Intestazione ---------- */}
         <header className="v-head">
           <div className="v-tecnico">{pratica.tecnico || 'Tecnico rilevatore'}</div>
