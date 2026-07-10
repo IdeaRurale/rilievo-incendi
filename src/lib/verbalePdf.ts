@@ -9,7 +9,7 @@ import {
   type Unita
 } from '../db';
 import { computeStats, esitoEffettivo, type Stats } from './stats';
-import { blobToDataURL, hexToRgb, imgSize, sharePdf } from './pdf';
+import { blobToOrientedImage, hexToRgb, sharePdf } from './pdf';
 
 export interface VerbaleData {
   pratica: Pratica;
@@ -374,8 +374,7 @@ export async function generaVerbalePdf(d: VerbaleData): Promise<void> {
     // prepara tutte le immagini (dataURL + dimensioni + didascalia)
     const items = await Promise.all(
       foto.map(async (f) => {
-        const dataURL = await blobToDataURL(f.blob);
-        const { w, h } = await imgSize(dataURL);
+        const { dataURL, w, h } = await blobToOrientedImage(f.blob);
         const rif =
           f.daNumero !== undefined
             ? f.aNumero !== undefined && f.daNumero !== f.aNumero
@@ -415,9 +414,8 @@ export async function generaVerbalePdf(d: VerbaleData): Promise<void> {
       cells.forEach((c, k) => {
         const x = mL + k * (colW + gap);
         const imgX = x + (colW - c.dw) / 2;
-        const fmt = c.it.dataURL.startsWith('data:image/png') ? 'PNG' : 'JPEG';
         try {
-          doc.addImage(c.it.dataURL, fmt, imgX, y, c.dw, c.dh);
+          doc.addImage(c.it.dataURL, 'JPEG', imgX, y, c.dw, c.dh);
           doc.setDrawColor(190, 190, 190);
           doc.setLineWidth(0.2);
           doc.rect(imgX, y, c.dw, c.dh);

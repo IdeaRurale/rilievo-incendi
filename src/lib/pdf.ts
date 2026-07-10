@@ -36,6 +36,38 @@ export function imgSize(dataURL: string): Promise<{ w: number; h: number }> {
   });
 }
 
+export interface ImgPronta {
+  dataURL: string;
+  w: number;
+  h: number;
+}
+
+/**
+ * Decodifica una foto rispettando l'orientamento EXIF (le foto verticali iPhone
+ * altrimenti finiscono ruotate nel PDF) e la ridimensiona per contenere il peso.
+ * Restituisce un JPEG già orientato correttamente.
+ */
+export async function blobToOrientedImage(blob: Blob, maxDim = 1400): Promise<ImgPronta> {
+  try {
+    const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+    const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height));
+    const w = Math.max(1, Math.round(bmp.width * scale));
+    const h = Math.max(1, Math.round(bmp.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(bmp, 0, 0, w, h);
+    bmp.close?.();
+    return { dataURL: canvas.toDataURL('image/jpeg', 0.85), w, h };
+  } catch {
+    // fallback: nessun ri-orientamento (browser molto vecchi)
+    const dataURL = await blobToDataURL(blob);
+    const { w, h } = await imgSize(dataURL);
+    return { dataURL, w, h };
+  }
+}
+
 export function hexToRgb(hex: string): [number, number, number] {
   const m = hex.replace('#', '');
   const n = m.length === 3 ? m.split('').map((c) => c + c).join('') : m;
