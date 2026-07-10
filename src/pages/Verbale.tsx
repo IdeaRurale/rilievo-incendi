@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Link, useParams } from 'react-router-dom';
 import { db, esitoLabel, UNITA_TIPI, type Classe, type Foto, type Pianta } from '../db';
 import { useClassi } from '../lib/useClassi';
 import { computeStats, esitoEffettivo } from '../lib/stats';
-import { elementoToPdf } from '../lib/pdf';
+import { generaVerbalePdf } from '../lib/verbalePdf';
 import { fmtData } from './Home';
 
 interface FotoUrl {
@@ -28,7 +28,6 @@ export default function Verbale() {
 
   const [urls, setUrls] = useState<FotoUrl[]>([]);
   const [pdfStato, setPdfStato] = useState<'idle' | 'genero' | 'errore'>('idle');
-  const articleRef = useRef<HTMLElement>(null);
 
   const nomeUnita = useMemo(
     () => new Map((unitaList ?? []).map((u) => [u.id!, u.nome])),
@@ -76,13 +75,9 @@ export default function Verbale() {
   const luogo = pratica.comune || pratica.localita || '________';
 
   async function salvaPdf() {
-    if (!articleRef.current) return;
     setPdfStato('genero');
-    const nome = `verbale-${(pratica!.titolo || 'sopralluogo').replace(/[^\w\-]+/g, '_')}-${new Date()
-      .toISOString()
-      .slice(0, 10)}.pdf`;
     try {
-      await elementoToPdf(articleRef.current, nome, pratica!.titolo);
+      await generaVerbalePdf({ pratica: pratica!, unitaList: unitaList!, piante: piante!, foto: foto!, classi });
       setPdfStato('idle');
     } catch (e) {
       console.error(e);
@@ -128,7 +123,7 @@ export default function Verbale() {
         </div>
       )}
 
-      <article className="verbale" ref={articleRef}>
+      <article className="verbale">
         {/* ---------- Intestazione ---------- */}
         <header className="v-head">
           <div className="v-tecnico">{pratica.tecnico || 'Tecnico rilevatore'}</div>

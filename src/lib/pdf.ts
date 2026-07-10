@@ -1,56 +1,12 @@
-/**
- * Genera un PDF A4 da un elemento del DOM e lo condivide (iOS) o lo scarica.
- * Funziona anche come PWA installata su iPhone, dove window.print() non è affidabile.
- * jsPDF e html2canvas-pro sono importati dinamicamente: pesano solo quando servono.
- */
-export async function elementoToPdf(
-  element: HTMLElement,
-  filename: string,
-  titolo?: string
-): Promise<void> {
-  const [{ default: jsPDF }, html2canvasMod] = await Promise.all([
-    import('jspdf'),
-    import('html2canvas-pro')
-  ]);
-  const html2canvas = html2canvasMod.default;
-
-  const canvas = await html2canvas(element, {
-    scale: 2,
-    backgroundColor: '#ffffff',
-    useCORS: true,
-    logging: false,
-    windowWidth: element.scrollWidth
-  });
-
-  const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-  const pageW = pdf.internal.pageSize.getWidth();
-  const pageH = pdf.internal.pageSize.getHeight();
-  const margin = 8;
-  const imgW = pageW - margin * 2;
-  const imgH = (canvas.height * imgW) / canvas.width;
-  const usableH = pageH - margin * 2;
-  const imgData = canvas.toDataURL('image/jpeg', 0.92);
-
-  let heightLeft = imgH;
-  let position = 0;
-  pdf.addImage(imgData, 'JPEG', margin, margin, imgW, imgH);
-  heightLeft -= usableH;
-  while (heightLeft > 0) {
-    position -= usableH;
-    pdf.addPage();
-    pdf.addImage(imgData, 'JPEG', margin, margin + position, imgW, imgH);
-    heightLeft -= usableH;
-  }
-
-  const blob = pdf.output('blob');
+/** Condivide (foglio iOS) o scarica un blob PDF. Affidabile anche come PWA su iPhone. */
+export async function sharePdf(blob: Blob, filename: string, titolo?: string): Promise<void> {
   const file = new File([blob], filename, { type: 'application/pdf' });
-
   if (navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: titolo });
       return;
     } catch (e) {
-      if ((e as DOMException).name === 'AbortError') return; // annullato
+      if ((e as DOMException).name === 'AbortError') return; // annullato dall'utente
       // altrimenti prosegue col download
     }
   }
@@ -60,4 +16,28 @@ export async function elementoToPdf(
   a.download = filename;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+export function blobToDataURL(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
+export function imgSize(dataURL: string): Promise<{ w: number; h: number }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => resolve({ w: 4, h: 3 });
+    img.src = dataURL;
+  });
+}
+
+export function hexToRgb(hex: string): [number, number, number] {
+  const m = hex.replace('#', '');
+  const n = m.length === 3 ? m.split('').map((c) => c + c).join('') : m;
+  return [parseInt(n.slice(0, 2), 16), parseInt(n.slice(2, 4), 16), parseInt(n.slice(4, 6), 16)];
 }
