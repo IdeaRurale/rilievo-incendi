@@ -103,6 +103,9 @@ export default function PraticaDetail() {
         <Link to={`/pratica/${id}/mappa`} className="btn btn-secondario">
           🗺 MAPPA DEL RILIEVO
         </Link>
+        <Link to={`/pratica/${id}/verbale`} className="btn btn-primario">
+          🖨 VERBALE DI SOPRALLUOGO (stampa/PDF)
+        </Link>
         <button
           className="btn btn-secondario"
           onClick={async () => {

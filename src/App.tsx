@@ -6,6 +6,7 @@ import UnitaForm from './pages/UnitaForm';
 import UnitaPage from './pages/UnitaPage';
 import DettaglioPianta from './pages/DettaglioPianta';
 import Riepilogo from './pages/Riepilogo';
+import Verbale from './pages/Verbale';
 import { lazy, Suspense } from 'react';
 
 const Mappa = lazy(() => import('./pages/Mappa'));
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/unita/:id" element={<UnitaPage />} />
         <Route path="/unita/:unitaId/pianta/:piantaId" element={<DettaglioPianta />} />
         <Route path="/pratica/:id/riepilogo" element={<Riepilogo />} />
+        <Route path="/pratica/:id/verbale" element={<Verbale />} />
         <Route
           path="/pratica/:id/mappa"
           element={
